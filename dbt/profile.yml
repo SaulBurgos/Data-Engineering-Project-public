@@ -1,0 +1,14 @@
+
+project1:
+  outputs:
+    dev:
+      account: "{{ env_var('SF_ACCOUNT') }}"
+      database:  "{{ env_var('SF_DATABASE') }}"
+      password:  "{{ env_var('SF_PASSWORD') }}"
+      role:  "{{ env_var('SF_ROLE') }}"
+      schema: "{{ env_var('SF_SCHEMA') }}"
+      threads: "{{ env_var('SF_THREADS') | int }}"
+      type: snowflake
+      user: "{{ env_var('SF_USER') }}"
+      warehouse: "{{ env_var('SF_WAREHOUSE') }}"
+  target: dev

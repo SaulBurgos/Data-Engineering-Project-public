@@ -1,0 +1,179 @@
+version: "3.7"
+
+volumes:
+  dagster_database:
+    driver: local
+  
+  my_database:
+    driver: local
+
+services:
+  docker_example_pgadmin:
+    image: dpage/pgadmin4
+    container_name: docker_example_pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=pgadmin@domain.com
+      - PGADMIN_DEFAULT_PASSWORD=pgadmin
+    ports:
+      - 7777:80
+    networks:
+      - docker_example_network
+
+  docker_example_my_postgresql:
+    image: postgres:14.5
+    container_name: docker_example_my_postgresql
+    ports:
+      - 5432:5432
+    expose:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: ${MY_BD_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${MY_BD_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MY_BD_POSTGRES_DB}
+    volumes:
+      - my_database:/var/lib/postgresql/data
+    networks:
+      - docker_example_network
+    
+
+  docker_example_fastapi:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile
+    container_name: docker_example_fastapi
+    image: docker_example_fastapi
+    expose:
+      - 4000:4000
+    ports:
+      - 4000:80
+    volumes:
+      - ./fastapi/app:/code/app
+    networks:
+      - docker_example_network
+    
+  # This service runs the postgres DB used by dagster for run storage, schedule storage,
+  # and event log storage.
+  docker_example_postgresql:
+    image: postgres:11
+    container_name: docker_example_postgresql
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    volumes:
+      - dagster_database:/var/lib/postgresql/data
+    networks:
+      - docker_example_network
+
+  # This service runs the gRPC server that loads your user code, in both dagit
+  # and dagster-daemon. By setting DAGSTER_CURRENT_IMAGE to its own image, we tell the
+  # run launcher to use this same image when launching runs in a new container as well.
+  # Multiple containers like this can be deployed separately - each just needs to run on
+  # its own port, and have its own entry in the workspace.yaml file that's loaded by dagit.
+  docker_example_user_code:
+    build:
+      context: ./dagster
+      dockerfile: user_code.dockerfile
+    container_name: docker_example_user_code
+    image: docker_example_user_code_image
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB: ${POSTGRES_DB}
+      DAGSTER_CURRENT_IMAGE: "docker_example_user_code_image"
+      MY_AIRBYTE_HOST: ${MY_AIRBYTE_HOST}
+      MY_AIRBYTE_PORT: ${MY_AIRBYTE_PORT}
+      MY_DBT_HOST: ${MY_DBT_HOST}
+      MY_DBT_HOST_PORT: ${MY_DBT_HOST_PORT}
+    networks:
+      - docker_example_network
+
+  # This service runs dagit, which loads your user code from the user code container.
+  # Since our instance uses the QueuedRunCoordinator, any runs submitted from dagit will be put on
+  # a queue and later dequeued and launched by dagster-daemon.
+  docker_example_dagit:
+    build:
+      context: ./dagster
+      dockerfile: dagster_dagit.dockerfile
+    entrypoint:
+      - dagit
+      - -h
+      - "0.0.0.0"
+      - -p
+      - "3000"
+      - -w
+      - workspace.yaml
+    container_name: docker_example_dagit
+    image: docker_example_dagit
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB:  ${POSTGRES_DB}
+    volumes: # Make docker client accessible so we can terminate containers from dagit
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - docker_example_network
+    depends_on:
+      - docker_example_postgresql
+      - docker_example_user_code
+
+  # This service runs the dagster-daemon process, which is responsible for taking runs
+  # off of the queue and launching them, as well as creating runs from schedules or sensors.
+  docker_example_daemon:
+    build:
+      context: ./dagster
+      dockerfile: dagster_dagit.dockerfile
+    entrypoint:
+      - dagster-daemon
+      - run
+    container_name: docker_example_daemon
+    image: docker_example_daemon
+    restart: on-failure
+    environment:
+      DAGSTER_POSTGRES_USER: ${POSTGRES_USER}
+      DAGSTER_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DAGSTER_POSTGRES_DB: ${POSTGRES_DB}
+      # MY_AIRBYTE_HOST: ${MY_AIRBYTE_HOST}
+      # MY_AIRBYTE_PORT: ${MY_AIRBYTE_PORT}
+    volumes: # Make docker client accessible so we can launch containers using host docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - docker_example_network
+    depends_on:
+      - docker_example_postgresql
+      - docker_example_user_code
+
+  docker_example_dbt:
+    build:
+      context: ./dbt
+      dockerfile: Dockerfile
+    container_name: docker_example_dbt
+    image: docker_example_dbt
+    environment:
+      SF_ACCOUNT: ${SF_ACCOUNT}
+      SF_USER: ${SF_USER}
+      SF_PASSWORD: ${SF_PASSWORD}
+      SF_DATABASE: ${SF_DATABASE}
+      SF_ROLE: ${SF_ROLE}
+      SF_SCHEMA: ${SF_SCHEMA}
+      SF_WAREHOUSE: ${SF_WAREHOUSE}
+      SF_THREADS: ${SF_THREADS}
+    ports:
+      - 8580:8580
+    networks:
+      - docker_example_network
+networks:
+  docker_example_network:
+    driver: bridge
+    name: docker_example_network
+
+
+## docker run --name saultest -d docker_example_dbt tail -f /dev/null
+## docker exec -it saultest bash

@@ -1,0 +1,10 @@
+dagster==1.0.8
+dagit==1.0.8
+dagster-docker==0.16.8
+dbt-core==1.2.1
+dbt-snowflake==1.2.0
+dbt-postgres==1.2.1
+dagster-dbt==0.16.8
+fastapi>=0.68.0,<0.69.0
+pydantic>=1.8.0,<2.0.0
+uvicorn>=0.15.0,<0.16.0

@@ -1,0 +1,4 @@
+dbt-core==1.2.0
+dbt-snowflake==1.2.0
+dbt-postgres==1.2.0
+dbt-rpc==0.1.2

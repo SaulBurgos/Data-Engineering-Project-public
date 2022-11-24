@@ -1,0 +1,7 @@
+dagster==1.0.9
+dagit==1.0.9
+dagster-docker==0.16.9
+dagster-postgres==0.16.9
+dagster-airbyte==0.16.9
+python-dotenv==0.21.0
+dagster-dbt==0.16.9

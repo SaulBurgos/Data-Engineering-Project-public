@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: source_snowflake
+    description: 'sample to test'
+    database: snowflake_sample_data
+    schema: TPCDS_SF10TCL
+    tables: 
+      - name: store_sales
+        description: 'dummy table'
