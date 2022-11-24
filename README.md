@@ -11,5 +11,5 @@ Tech Stack
 - snowflake
 - python
 
-Article:
+Spanish tutorial:
 https://dev.to/saulburgos/data-engineer-practica-con-dagster-airbyte-dbt-snowflake-docker-112p
